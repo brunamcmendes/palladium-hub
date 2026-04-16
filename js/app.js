@@ -7,7 +7,10 @@ const K = {
   theme:'phub_theme'
 };
 const ld  = k => { try { return JSON.parse(localStorage.getItem(k)||'[]'); } catch { return []; } };
-const sv  = (k,d) => { try { localStorage.setItem(k,JSON.stringify(d)); } catch {} };
+const sv  = (k,d) => {
+  try { localStorage.setItem(k,JSON.stringify(d)); } catch {}
+  if (typeof syncParaNuvem === 'function') syncParaNuvem(k, d);
+};
 const ldS = k => { try { return localStorage.getItem(k)||''; } catch { return ''; } };
 const svS = (k,v) => { try { localStorage.setItem(k,v); } catch {} };
 
@@ -442,10 +445,14 @@ function setDate(){
   if(el) el.textContent=`${dias[now.getDay()]}, ${now.getDate()} ${meses[now.getMonth()]} ${now.getFullYear()}`;
 }
 
-document.addEventListener('DOMContentLoaded',()=>{
+document.addEventListener('DOMContentLoaded', async ()=>{
   initData();
   if (typeof initFinanceiro === 'function') initFinanceiro();
   setDate();
+  if (typeof initSupabase === 'function') {
+    const ok = initSupabase();
+    if (ok) { iniciarMonitorConexao(); setTimeout(()=>sincronizarTudo(),500); }
+  }
   const theme=loadTheme();
   applyTheme(theme);
   updateLogoColor(theme.pal||DEF_THEME.pal);
