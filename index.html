@@ -11,17 +11,11 @@
 </head>
 <body>
 
-<!-- TOPBAR -->
 <header class="topbar">
-  <button class="menu-toggle" onclick="toggleMobileMenu()" aria-label="Menu">☰</button>
+  <button class="menu-toggle" onclick="toggleMobileMenu()">☰</button>
   <a href="#" class="topbar-logo" onclick="goTab('home');return false;">
     <div class="logo-mark">
-      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="2" y="2" width="5" height="5" rx="1.5" fill="white" opacity=".9"/>
-        <rect x="9" y="2" width="5" height="5" rx="1.5" fill="white" opacity=".6"/>
-        <rect x="2" y="9" width="5" height="5" rx="1.5" fill="white" opacity=".6"/>
-        <rect x="9" y="9" width="5" height="5" rx="1.5" fill="white" opacity=".3"/>
-      </svg>
+      <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1.5" fill="white" opacity=".9"/><rect x="9" y="2" width="5" height="5" rx="1.5" fill="white" opacity=".6"/><rect x="2" y="9" width="5" height="5" rx="1.5" fill="white" opacity=".6"/><rect x="9" y="9" width="5" height="5" rx="1.5" fill="white" opacity=".3"/></svg>
     </div>
     Palladium Hub
   </a>
@@ -29,369 +23,268 @@
     <span class="topbar-date" id="topbar-date"></span>
   </div>
   <div class="topbar-right">
-    <button class="btn-claude" onclick="window.open('https://claude.ai','_blank')">
-      Pedir ajuda ao Claude ↗
-    </button>
+    <button class="btn-icon" onclick="goTab('config')" title="Personalizar">⚙</button>
+    <button class="btn-claude" onclick="window.open('https://claude.ai','_blank')">Pedir ajuda ao Claude ↗</button>
   </div>
 </header>
 
 <div class="app-layout">
 
-  <!-- SIDEBAR -->
   <nav class="sidebar">
     <div class="nav-section-label">Principal</div>
     <button class="nav-item nav-home" data-tab="home" onclick="goTab('home')">
-      <div class="nav-dot" style="background:#1A1A18"></div>
-      Visão geral
+      <div class="nav-dot" style="background:var(--text)"></div>Visão geral
     </button>
 
     <div class="nav-section-label">Palladium</div>
     <button class="nav-item nav-pal" data-tab="pal" onclick="goTab('pal')">
-      <div class="nav-dot" style="background:var(--pal)"></div>
-      Tarefas e demandas
+      <div class="nav-dot" style="background:var(--pal)"></div>Tarefas e demandas
     </button>
     <button class="nav-item nav-emp" data-tab="emp" onclick="goTab('emp')">
-      <div class="nav-dot" style="background:var(--emp)"></div>
-      Empreendimentos
+      <div class="nav-dot" style="background:var(--emp)"></div>Empreendimentos
     </button>
     <button class="nav-item nav-inv" data-tab="inv" onclick="goTab('inv')">
-      <div class="nav-dot" style="background:var(--inv)"></div>
-      Inventário
+      <div class="nav-dot" style="background:var(--inv)"></div>Inventário
     </button>
 
     <div class="nav-section-label">Pessoal</div>
     <button class="nav-item nav-pes" data-tab="pes" onclick="goTab('pes')">
-      <div class="nav-dot" style="background:var(--pes)"></div>
-      Financeiro e demandas
+      <div class="nav-dot" style="background:var(--pes)"></div>Financeiro e demandas
     </button>
 
     <div class="nav-section-label">Geral</div>
     <button class="nav-item nav-docs" data-tab="docs" onclick="goTab('docs')">
-      <div class="nav-dot" style="background:var(--docs-color)"></div>
-      Documentos
+      <div class="nav-dot" style="background:var(--docs-color)"></div>Documentos
+    </button>
+    <button class="nav-item nav-config" data-tab="config" onclick="goTab('config')">
+      <div class="nav-dot" style="background:var(--text-3)"></div>Personalizar
     </button>
   </nav>
 
-  <!-- MAIN CONTENT -->
   <main class="main">
 
-    <!-- ── VISÃO GERAL ── -->
+    <!-- VISÃO GERAL -->
     <div id="panel-home" class="panel">
       <div class="page-hd">
-        <div>
-          <div class="page-title">Visão geral</div>
-          <div class="page-sub">Bom dia, Bruna. Aqui estão suas prioridades de hoje.</div>
-        </div>
+        <div><div class="page-title">Visão geral</div><div class="page-sub">Bom dia, Bruna. Aqui estão suas prioridades de hoje.</div></div>
+        <div class="page-hd-actions"><button class="btn-export" onclick="exportPDF()">↓ Exportar PDF</button></div>
       </div>
-
       <div class="metrics" id="home-metrics"></div>
-
       <div class="two-col" style="margin-bottom:1.5rem">
         <div>
           <div class="sh"><span class="st">Urgentes fixados</span></div>
           <div id="home-urgentes"></div>
         </div>
         <div>
-          <div class="sh">
-            <span class="st">Agenda da semana</span>
-            <button class="add-mini" onclick="addAgenda()">+ Adicionar</button>
-          </div>
-          <div class="card" style="padding:.875rem 1rem">
-            <div id="agenda-list"></div>
-          </div>
+          <div class="sh"><span class="st">Agenda da semana</span><button class="add-mini" onclick="addAgenda()">+ Adicionar</button></div>
+          <div class="card" style="padding:.875rem 1rem"><div id="agenda-list"></div></div>
         </div>
       </div>
-
       <div class="sh"><span class="st">Vencimentos próximos (7 dias)</span></div>
       <div id="home-venc"></div>
-
       <hr class="sep">
       <div class="sh"><span class="st">Notas rápidas</span></div>
       <textarea class="scratch" id="scratch-pad" placeholder="Notas livres, ideias, rascunhos..."></textarea>
     </div>
 
-    <!-- ── PALLADIUM ── -->
+    <!-- PALLADIUM -->
     <div id="panel-pal" class="panel">
       <div class="page-hd">
-        <div>
-          <div class="page-title">Tarefas Palladium</div>
-          <div class="page-sub">Kanban por setor — clique → para mover entre colunas</div>
+        <div><div class="page-title">Tarefas Palladium</div><div class="page-sub">Kanban por setor — use → para mover entre colunas</div></div>
+        <div class="page-hd-actions">
+          <button class="btn-export" onclick="exportPDF()">↓ PDF</button>
+          <button class="add-mini" onclick="toggleForm('form-pal')">+ Nova tarefa</button>
         </div>
-        <button class="add-mini" onclick="toggleForm('form-pal')">+ Nova tarefa</button>
       </div>
-
       <div class="form-box" id="form-pal">
         <div class="fg">
           <input id="pk-titulo" placeholder="Título da tarefa">
-          <select id="pk-setor">
-            <option value="Jurídico">Jurídico</option>
-            <option value="Operacional">Operacional</option>
-            <option value="Financeiro">Financeiro</option>
-            <option value="Patrimônio">Patrimônio</option>
-            <option value="RH">RH</option>
-            <option value="Compliance">Compliance</option>
-          </select>
+          <select id="pk-setor"><option value="Jurídico">Jurídico</option><option value="Operacional">Operacional</option><option value="Financeiro">Financeiro</option><option value="Patrimônio">Patrimônio</option><option value="RH">RH</option><option value="Compliance">Compliance</option></select>
         </div>
         <div class="fg">
-          <select id="pk-prio">
-            <option value="alta">Alta prioridade</option>
-            <option value="media" selected>Média</option>
-            <option value="baixa">Baixa</option>
-          </select>
+          <select id="pk-prio"><option value="alta">Alta prioridade</option><option value="media" selected>Média</option><option value="baixa">Baixa</option></select>
           <input id="pk-prazo" type="date">
         </div>
         <div class="fw"><input id="pk-obs" placeholder="Observação (opcional)"></div>
-        <div class="fa">
-          <button class="btn-save" onclick="savePalTask()">Salvar</button>
-          <button class="btn-cancel" onclick="toggleForm('form-pal')">Cancelar</button>
-        </div>
+        <div class="fa"><button class="btn-save" onclick="savePalTask()">Salvar</button><button class="btn-cancel" onclick="toggleForm('form-pal')">Cancelar</button></div>
       </div>
-
       <div class="setor-tabs" id="setor-tabs"></div>
       <div id="pal-kanban"></div>
     </div>
 
-    <!-- ── EMPREENDIMENTOS ── -->
+    <!-- EMPREENDIMENTOS -->
     <div id="panel-emp" class="panel">
       <div class="page-hd">
-        <div>
-          <div class="page-title">Empreendimentos</div>
-          <div class="page-sub">Clique em um empreendimento para ver detalhes</div>
+        <div><div class="page-title">Empreendimentos</div><div class="page-sub">Clique em um empreendimento para ver detalhes</div></div>
+        <div class="page-hd-actions">
+          <button class="btn-export" onclick="exportPDF()">↓ PDF</button>
+          <button class="add-mini" onclick="toggleForm('form-emp')">+ Empreendimento</button>
         </div>
-        <button class="add-mini" onclick="toggleForm('form-emp')">+ Empreendimento</button>
       </div>
-
       <div class="form-box" id="form-emp">
-        <div class="fg">
-          <input id="em-nome" placeholder="Nome do empreendimento">
-          <select id="em-fase">
-            <option value="Planejamento">Planejamento</option>
-            <option value="Lançamento">Lançamento</option>
-            <option value="Obras">Obras</option>
-            <option value="Entregue">Entregue</option>
-            <option value="Pós-obra">Pós-obra</option>
-          </select>
-        </div>
-        <div class="fg">
-          <input id="em-local" placeholder="Localização">
-          <select id="em-tipo">
-            <option value="Loteamento">Loteamento</option>
-            <option value="Incorporação">Incorporação</option>
-            <option value="Agro">Agronegócio</option>
-            <option value="Comercial">Comercial</option>
-          </select>
-        </div>
-        <div class="fa">
-          <button class="btn-save" onclick="saveEmp()">Salvar</button>
-          <button class="btn-cancel" onclick="toggleForm('form-emp')">Cancelar</button>
-        </div>
+        <div class="fg"><input id="em-nome" placeholder="Nome do empreendimento"><select id="em-fase"><option value="Planejamento">Planejamento</option><option value="Lançamento">Lançamento</option><option value="Obras">Obras</option><option value="Entregue">Entregue</option><option value="Pós-obra">Pós-obra</option></select></div>
+        <div class="fg"><input id="em-local" placeholder="Localização"><select id="em-tipo"><option value="Loteamento">Loteamento</option><option value="Incorporação">Incorporação</option><option value="Agro">Agronegócio</option><option value="Comercial">Comercial</option></select></div>
+        <div class="fa"><button class="btn-save" onclick="saveEmp()">Salvar</button><button class="btn-cancel" onclick="toggleForm('form-emp')">Cancelar</button></div>
       </div>
-
       <div class="emp-grid" id="emp-grid"></div>
       <div id="emp-detail-area"></div>
     </div>
 
-    <!-- ── INVENTÁRIO ── -->
+    <!-- INVENTÁRIO -->
     <div id="panel-inv" class="panel">
       <div class="page-hd">
-        <div>
-          <div class="page-title">Inventário</div>
-          <div class="page-sub">Processos judiciais, bens, SPEs e holding</div>
-        </div>
+        <div><div class="page-title">Inventário</div><div class="page-sub">Processos judiciais, bens, SPEs e holding</div></div>
+        <div class="page-hd-actions"><button class="btn-export" onclick="exportPDF()">↓ PDF</button></div>
       </div>
-
       <div class="inv-grid3" id="inv-stats"></div>
-
-      <div class="sh">
-        <span class="st">Processos judiciais</span>
-        <button class="add-mini" onclick="toggleForm('form-inv-proc')">+ Processo</button>
-      </div>
+      <div class="sh"><span class="st">Processos judiciais</span><button class="add-mini" onclick="toggleForm('form-inv-proc')">+ Processo</button></div>
       <div class="form-box" id="form-inv-proc">
-        <div class="fg">
-          <input id="ip-num" placeholder="Número do processo">
-          <input id="ip-parte" placeholder="Parte adversa">
-        </div>
-        <div class="fg">
-          <select id="ip-adv">
-            <option value="Dr. Marcos">Dr. Marcos</option>
-            <option value="Dr. Cledson">Dr. Cledson</option>
-            <option value="Sem advogado">Sem advogado</option>
-          </select>
-          <select id="ip-status">
-            <option value="P1">P1 — urgente</option>
-            <option value="P2">P2 — atenção</option>
-            <option value="P3">P3 — monitorar</option>
-          </select>
-        </div>
+        <div class="fg"><input id="ip-num" placeholder="Número"><input id="ip-parte" placeholder="Parte adversa"></div>
+        <div class="fg"><select id="ip-adv"><option value="Dr. Marcos">Dr. Marcos</option><option value="Dr. Cledson">Dr. Cledson</option><option value="Sem advogado">Sem advogado</option></select><select id="ip-status"><option value="P1">P1 — urgente</option><option value="P2">P2 — atenção</option><option value="P3">P3 — monitorar</option></select></div>
         <div class="fw"><input id="ip-desc" placeholder="Descrição resumida"></div>
-        <div class="fa">
-          <button class="btn-save" onclick="saveProc()">Salvar</button>
-          <button class="btn-cancel" onclick="toggleForm('form-inv-proc')">Cancelar</button>
-        </div>
+        <div class="fa"><button class="btn-save" onclick="saveProc()">Salvar</button><button class="btn-cancel" onclick="toggleForm('form-inv-proc')">Cancelar</button></div>
       </div>
-      <div class="card" style="padding:.5rem 1rem;margin-bottom:1.25rem">
-        <div id="proc-list"></div>
-      </div>
-
-      <div class="sh">
-        <span class="st">Bens, SPEs e holdings</span>
-        <button class="add-mini" onclick="toggleForm('form-inv-bem')">+ Bem / SPE</button>
-      </div>
+      <div class="card" style="padding:.5rem 1rem;margin-bottom:1.25rem"><div id="proc-list"></div></div>
+      <div class="sh"><span class="st">Bens, SPEs e holdings</span><button class="add-mini" onclick="toggleForm('form-inv-bem')">+ Bem / SPE</button></div>
       <div class="form-box" id="form-inv-bem">
-        <div class="fg">
-          <input id="ib-nome" placeholder="Nome / descrição">
-          <select id="ib-tipo">
-            <option value="SPE">SPE</option>
-            <option value="Imóvel">Imóvel</option>
-            <option value="Holding">Holding</option>
-            <option value="Agro">Agronegócio</option>
-            <option value="Outro">Outro</option>
-          </select>
-        </div>
-        <div class="fg">
-          <input id="ib-cnpj" placeholder="CNPJ / matrícula">
-          <select id="ib-status">
-            <option value="Ativo">Ativo</option>
-            <option value="Em regularização">Em regularização</option>
-            <option value="Cancelado">Cancelado</option>
-          </select>
-        </div>
+        <div class="fg"><input id="ib-nome" placeholder="Nome / descrição"><select id="ib-tipo"><option value="SPE">SPE</option><option value="Imóvel">Imóvel</option><option value="Holding">Holding</option><option value="Agro">Agronegócio</option><option value="Outro">Outro</option></select></div>
+        <div class="fg"><input id="ib-cnpj" placeholder="CNPJ / matrícula"><select id="ib-status"><option value="Ativo">Ativo</option><option value="Em regularização">Em regularização</option><option value="Cancelado">Cancelado</option></select></div>
         <div class="fw"><input id="ib-obs" placeholder="Observação"></div>
-        <div class="fa">
-          <button class="btn-save" onclick="saveBem()">Salvar</button>
-          <button class="btn-cancel" onclick="toggleForm('form-inv-bem')">Cancelar</button>
-        </div>
+        <div class="fa"><button class="btn-save" onclick="saveBem()">Salvar</button><button class="btn-cancel" onclick="toggleForm('form-inv-bem')">Cancelar</button></div>
       </div>
       <div id="bens-list"></div>
-
       <hr class="sep">
       <div class="sh"><span class="st">Notas — inventário e espólio</span></div>
       <textarea class="scratch" id="scratch-inv" placeholder="Pendências do espólio, anotações do inventário..."></textarea>
     </div>
 
-    <!-- ── PESSOAL ── -->
+    <!-- PESSOAL -->
     <div id="panel-pes" class="panel">
       <div class="page-hd">
-        <div>
-          <div class="page-title">Pessoal</div>
-          <div class="page-sub">Financeiro pessoal e demandas diversas</div>
+        <div><div class="page-title">Pessoal</div><div class="page-sub">Financeiro pessoal e demandas diversas</div></div>
+        <div class="page-hd-actions">
+          <button class="btn-export" onclick="exportPDF()">↓ PDF</button>
+          <button class="add-mini" onclick="toggleForm('form-fin')">+ Lançamento</button>
         </div>
-        <button class="add-mini" onclick="toggleForm('form-fin')">+ Lançamento</button>
       </div>
-
       <div class="form-box" id="form-fin">
-        <div class="fg">
-          <input id="fn-desc" placeholder="Descrição">
-          <select id="fn-tipo">
-            <option value="despesa">Despesa</option>
-            <option value="receita">Receita</option>
-          </select>
-        </div>
-        <div class="fg">
-          <input id="fn-val" type="number" placeholder="Valor R$">
-          <input id="fn-venc" type="date">
-        </div>
-        <div class="fg">
-          <select id="fn-cat">
-            <option value="Contas">Contas fixas</option>
-            <option value="Cartão">Cartão</option>
-            <option value="Honorários">Honorários</option>
-            <option value="Investimento">Investimento</option>
-            <option value="PGGS">PGGS Einstein</option>
-            <option value="Saúde">Saúde</option>
-            <option value="Outro">Outro</option>
-          </select>
-          <select id="fn-status">
-            <option value="pendente">Pendente</option>
-            <option value="pago">Pago / recebido</option>
-          </select>
-        </div>
-        <div class="fa">
-          <button class="btn-save" onclick="saveFin()">Salvar</button>
-          <button class="btn-cancel" onclick="toggleForm('form-fin')">Cancelar</button>
-        </div>
+        <div class="fg"><input id="fn-desc" placeholder="Descrição"><select id="fn-tipo"><option value="despesa">Despesa</option><option value="receita">Receita</option></select></div>
+        <div class="fg"><input id="fn-val" type="number" placeholder="Valor R$"><input id="fn-venc" type="date"></div>
+        <div class="fg"><select id="fn-cat"><option value="Contas">Contas fixas</option><option value="Cartão">Cartão</option><option value="Honorários">Honorários</option><option value="Investimento">Investimento</option><option value="PGGS">PGGS Einstein</option><option value="Saúde">Saúde</option><option value="Outro">Outro</option></select><select id="fn-status"><option value="pendente">Pendente</option><option value="pago">Pago</option></select></div>
+        <div class="fa"><button class="btn-save" onclick="saveFin()">Salvar</button><button class="btn-cancel" onclick="toggleForm('form-fin')">Cancelar</button></div>
       </div>
-
       <div class="metrics three-col-metrics" id="fin-metrics"></div>
-
       <div class="fin-2col">
-        <div class="fin-card">
-          <div class="fin-hd">Despesas pendentes</div>
-          <div id="fin-desp"></div>
-        </div>
-        <div class="fin-card">
-          <div class="fin-hd">Receitas / honorários</div>
-          <div id="fin-rec"></div>
-        </div>
+        <div class="fin-card"><div class="fin-hd">Despesas pendentes</div><div id="fin-desp"></div></div>
+        <div class="fin-card"><div class="fin-hd">Receitas / honorários</div><div id="fin-rec"></div></div>
       </div>
-
       <hr class="sep">
-      <div class="sh">
-        <span class="st">Demandas pessoais</span>
-        <button class="add-mini" onclick="toggleForm('form-pes-dem')">+ Adicionar</button>
-      </div>
+      <div class="sh"><span class="st">Demandas pessoais</span><button class="add-mini" onclick="toggleForm('form-pes-dem')">+ Adicionar</button></div>
       <div class="form-box" id="form-pes-dem">
-        <div class="fg">
-          <input id="pd-titulo" placeholder="Título">
-          <select id="pd-cat">
-            <option value="Saúde">Saúde</option>
-            <option value="PGGS">PGGS Einstein</option>
-            <option value="Viagem">Viagens</option>
-            <option value="Compras">Compras / doméstico</option>
-            <option value="Outro">Outro</option>
-          </select>
-        </div>
-        <div class="fg">
-          <select id="pd-prio">
-            <option value="alta">Alta</option>
-            <option value="media" selected>Média</option>
-            <option value="baixa">Baixa</option>
-          </select>
-          <input id="pd-prazo" type="date">
-        </div>
+        <div class="fg"><input id="pd-titulo" placeholder="Título"><select id="pd-cat"><option value="Saúde">Saúde</option><option value="PGGS">PGGS Einstein</option><option value="Viagem">Viagens</option><option value="Compras">Compras / doméstico</option><option value="Outro">Outro</option></select></div>
+        <div class="fg"><select id="pd-prio"><option value="alta">Alta</option><option value="media" selected>Média</option><option value="baixa">Baixa</option></select><input id="pd-prazo" type="date"></div>
         <div class="fw"><input id="pd-obs" placeholder="Observação"></div>
-        <div class="fa">
-          <button class="btn-save" onclick="savePesDem()">Salvar</button>
-          <button class="btn-cancel" onclick="toggleForm('form-pes-dem')">Cancelar</button>
-        </div>
+        <div class="fa"><button class="btn-save" onclick="savePesDem()">Salvar</button><button class="btn-cancel" onclick="toggleForm('form-pes-dem')">Cancelar</button></div>
       </div>
       <div id="pes-dem-list"></div>
     </div>
 
-    <!-- ── DOCUMENTOS ── -->
+    <!-- DOCUMENTOS -->
     <div id="panel-docs" class="panel">
-      <div class="page-hd">
-        <div>
-          <div class="page-title">Documentos</div>
-          <div class="page-sub">Biblioteca geral — anexos ou links do Drive</div>
-        </div>
-      </div>
-
-      <div class="drop-zone" id="drop-zone"
-        onclick="document.getElementById('file-input-lib').click()"
-        ondragover="event.preventDefault();this.classList.add('dragover')"
-        ondragleave="this.classList.remove('dragover')"
-        ondrop="handleDrop(event)">
+      <div class="page-hd"><div><div class="page-title">Documentos</div><div class="page-sub">Biblioteca geral — anexos ou links do Drive</div></div></div>
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input-lib').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="handleDrop(event)">
         <input type="file" id="file-input-lib" class="file-input" multiple onchange="handleFiles(this.files,'lib')">
         <div class="drop-zone-txt">Arraste arquivos aqui ou clique para selecionar</div>
         <div class="drop-zone-sub">PDF, Word, Excel e outros · para arquivos pesados use link do Drive</div>
       </div>
-
       <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap">
         <input id="link-url" placeholder="Cole link do Google Drive ou Dropbox..." style="flex:2;min-width:180px;font-size:12px;padding:7px 10px;border:1px solid var(--border-mid);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-family:var(--font-body)">
         <input id="link-nome" placeholder="Nome do arquivo" style="flex:1;min-width:120px;font-size:12px;padding:7px 10px;border:1px solid var(--border-mid);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-family:var(--font-body)">
-        <select id="link-cat" style="font-size:12px;padding:7px 10px;border:1px solid var(--border-mid);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-family:var(--font-body)">
-          <option value="Jurídico">Jurídico</option>
-          <option value="Operacional">Operacional</option>
-          <option value="Financeiro">Financeiro</option>
-          <option value="Empreendimento">Empreendimento</option>
-          <option value="Pessoal">Pessoal</option>
-          <option value="Inventário">Inventário</option>
-        </select>
+        <select id="link-cat" style="font-size:12px;padding:7px 10px;border:1px solid var(--border-mid);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-family:var(--font-body)"><option value="Jurídico">Jurídico</option><option value="Operacional">Operacional</option><option value="Financeiro">Financeiro</option><option value="Empreendimento">Empreendimento</option><option value="Pessoal">Pessoal</option><option value="Inventário">Inventário</option></select>
         <button class="btn-save" onclick="saveLink()" style="padding:7px 16px">Salvar link</button>
       </div>
-
       <div class="doc-lib" id="doc-lib"></div>
+    </div>
+
+    <!-- PERSONALIZAR -->
+    <div id="panel-config" class="panel">
+      <div class="page-hd">
+        <div><div class="page-title">Personalizar</div><div class="page-sub">Ajuste cores, fontes e espaçamento do app</div></div>
+      </div>
+      <div class="config-grid">
+
+        <div class="config-section">
+          <div class="config-section-title">Cores por área</div>
+          <div class="config-row">
+            <span class="config-label">Palladium (tarefas)</span>
+            <div class="color-picker-wrap">
+              <div class="color-preview" id="prev-pal"></div>
+              <input type="color" id="cfg-pal" value="#534AB7" oninput="document.getElementById('prev-pal').style.background=this.value">
+            </div>
+          </div>
+          <div class="config-row">
+            <span class="config-label">Pessoal</span>
+            <div class="color-picker-wrap">
+              <div class="color-preview" id="prev-pes"></div>
+              <input type="color" id="cfg-pes" value="#0F6E56" oninput="document.getElementById('prev-pes').style.background=this.value">
+            </div>
+          </div>
+          <div class="config-row">
+            <span class="config-label">Inventário</span>
+            <div class="color-picker-wrap">
+              <div class="color-preview" id="prev-inv"></div>
+              <input type="color" id="cfg-inv" value="#854F0B" oninput="document.getElementById('prev-inv').style.background=this.value">
+            </div>
+          </div>
+          <div class="config-row">
+            <span class="config-label">Empreendimentos</span>
+            <div class="color-picker-wrap">
+              <div class="color-preview" id="prev-emp"></div>
+              <input type="color" id="cfg-emp" value="#993556" oninput="document.getElementById('prev-emp').style.background=this.value">
+            </div>
+          </div>
+          <div class="config-row">
+            <span class="config-label">Modo escuro</span>
+            <button class="toggle" id="cfg-dark" onclick="toggleDarkMode()"></button>
+          </div>
+        </div>
+
+        <div class="config-section">
+          <div class="config-section-title">Tipografia e espaçamento</div>
+          <div class="config-row">
+            <span class="config-label">Fonte do texto</span>
+            <select class="font-select" id="cfg-font-body">
+              <option value="DM Sans">DM Sans (padrão)</option>
+              <option value="Inter">Inter</option>
+              <option value="Lato">Lato</option>
+              <option value="Nunito">Nunito</option>
+            </select>
+          </div>
+          <div class="config-row">
+            <span class="config-label">Fonte dos títulos</span>
+            <select class="font-select" id="cfg-font-display">
+              <option value="Syne">Syne (padrão)</option>
+              <option value="Playfair Display">Playfair Display</option>
+              <option value="Inter">Inter</option>
+            </select>
+          </div>
+          <div class="config-row">
+            <span class="config-label">Densidade</span>
+            <select class="space-select" id="cfg-spacing">
+              <option value="compact">Compacto</option>
+              <option value="normal" selected>Normal</option>
+              <option value="spacious">Espaçado</option>
+            </select>
+          </div>
+          <div class="config-preview">
+            <div class="font-preview" id="cfg-preview-title">Palladium Hub</div>
+            <div class="font-preview-sub" id="cfg-preview-sub">Visão geral das demandas e pendências</div>
+          </div>
+          <button class="btn-config-save" onclick="saveTheme()">Aplicar personalização</button>
+          <button class="btn-config-reset" onclick="resetTheme()">Restaurar padrão</button>
+        </div>
+
+      </div>
     </div>
 
   </main>
