@@ -1,430 +1,402 @@
-// ── FINANCEIRO MODULE ─────────────────────────────────────────────────────────
-// Arquivo separado para o módulo financeiro completo
-// Importado pelo index.html após app.js
+// ═══════════════════════════════════════════════════════════════════════════════
+// PALLADIUM HUB — Google Apps Script
+// Roda automaticamente todo dia às 8h
+// Funções: buscar gastos no Gmail + criar eventos de vencimento no Calendar
+// ═══════════════════════════════════════════════════════════════════════════════
 
-const KF = {
-  lancamentos: 'phub_fin_lanc',
-  orcamento:   'phub_fin_orc',
-  empresa:     'phub_fin_emp',
-  mesAtivo:    'phub_fin_mes',
+// ── CONFIGURAÇÕES ─────────────────────────────────────────────────────────────
+const CONFIG = {
+  // Nome da planilha que será criada/usada no Google Sheets
+  PLANILHA_NOME: 'Palladium Hub — Financeiro',
+
+  // Quantos dias de e-mails buscar a cada execução
+  DIAS_BUSCA: 3,
+
+  // Cor dos eventos de vencimento no Calendar (11 = vermelho, 9 = azul, 2 = verde)
+  COR_VENCIMENTO: 11,
+  COR_PAGO: 2,
+
+  // Lembrete em minutos antes do vencimento (1440 = 1 dia, 2880 = 2 dias)
+  LEMBRETE_DIAS_ANTES: 2880,
+  LEMBRETE_NO_DIA: 480, // 8 horas = 8am
+
+  // Prefixo dos eventos no Calendar para identificar os criados por este script
+  PREFIXO_EVENTO: '💰 Vencimento: ',
 };
 
-// ── CONTAS FIXAS PRÉ-CADASTRADAS ─────────────────────────────────────────────
-const FIXOS_DEFAULT = [
-  { id:'f1', nome:'Claude (Anthropic)', valor:550.00,    dia:1,  cat:'Assinaturas', tipo:'despesa', auto:true,  pago:false },
-  { id:'f2', nome:'Apple',              valor:19.90,     dia:1,  cat:'Assinaturas', tipo:'despesa', auto:true,  pago:false },
-  { id:'f3', nome:'Google One',         valor:9.90,      dia:1,  cat:'Assinaturas', tipo:'despesa', auto:true,  pago:false },
-  { id:'f4', nome:'Meli+',              valor:74.90,     dia:1,  cat:'Lazer',       tipo:'despesa', auto:true,  pago:false },
-  { id:'f5', nome:'Linq Internet',      valor:129.90,    dia:10, cat:'Casa',        tipo:'despesa', auto:true,  pago:false },
-  { id:'f6', nome:'Einstein PGGS',      valor:1533.17,   dia:10, cat:'Educação',    tipo:'despesa', auto:false, pago:false },
+// ── CONTAS FIXAS ──────────────────────────────────────────────────────────────
+const CONTAS_FIXAS = [
+  { nome: 'Claude (Anthropic)',  valor: 550.00,  dia: 1,  cat: 'Assinaturas' },
+  { nome: 'Apple',               valor: 19.90,   dia: 1,  cat: 'Assinaturas' },
+  { nome: 'Google One',          valor: 9.90,    dia: 1,  cat: 'Assinaturas' },
+  { nome: 'Meli+',               valor: 74.90,   dia: 1,  cat: 'Lazer'       },
+  { nome: 'Linq Internet',       valor: 129.90,  dia: 10, cat: 'Casa'        },
+  { nome: 'Einstein PGGS',       valor: 1533.17, dia: 10, cat: 'Educação'    },
 ];
 
-const VARIAVEIS_DEFAULT = [
-  { id:'v1', nome:'Saúde e bem-estar',  valor:400,  cat:'Saúde',      tipo:'despesa', variavel:true, pago:false },
-  { id:'v2', nome:'Roupas e compras',   valor:300,  cat:'Compras',    tipo:'despesa', variavel:true, pago:false },
-  { id:'v3', nome:'Casa (Saneago, gás)',valor:250,  cat:'Casa',       tipo:'despesa', variavel:true, pago:false },
-  { id:'v4', nome:'Lazer e delivery',   valor:400,  cat:'Lazer',      tipo:'despesa', variavel:true, pago:false },
-  { id:'v5', nome:'Investimentos',      valor:650,  cat:'Investimento',tipo:'despesa',variavel:true, pago:false },
-  { id:'v6', nome:'Outros variáveis',   valor:500,  cat:'Outros',     tipo:'despesa', variavel:true, pago:false },
+// ── PADRÕES DE BUSCA NO GMAIL ─────────────────────────────────────────────────
+// Cada entrada: { remetente ou assunto para buscar, categoria, nome amigável }
+const PADROES_GMAIL = [
+  // Compras e moda
+  { query: 'from:noreply@shein.com OR from:email.shein.com',           cat: 'Compras',  nome: 'Shein'          },
+  { query: 'from:noreply@shopee.com.br OR from:shopee',                cat: 'Compras',  nome: 'Shopee'         },
+  { query: 'from:mercadopago OR (assunto:pagamento mercadolivre)',      cat: 'Compras',  nome: 'Mercado Livre'  },
+  { query: 'from:amazon.com.br OR from:marketplace@amazon',            cat: 'Compras',  nome: 'Amazon'         },
+
+  // Delivery e alimentação
+  { query: 'from:ifood OR from:noreply@ifood.com.br',                  cat: 'Lazer',    nome: 'iFood'          },
+  { query: 'from:uber OR from:uber-eats',                               cat: 'Transporte', nome: 'Uber'         },
+  { query: 'from:rappi OR from:noreply@rappi.com',                      cat: 'Lazer',    nome: 'Rappi'         },
+
+  // Streaming e lazer
+  { query: 'from:tiktok OR from:noreply@tiktok.com',                   cat: 'Lazer',    nome: 'TikTok'         },
+  { query: 'from:netflix OR from:info@mailer.netflix.com',              cat: 'Lazer',    nome: 'Netflix'        },
+  { query: 'from:spotify OR from:no-reply@spotify.com',                 cat: 'Lazer',    nome: 'Spotify'        },
+  { query: 'from:youtube OR from:youtube-noreply',                      cat: 'Lazer',    nome: 'YouTube Premium'},
+
+  // Saúde e bem-estar
+  { query: 'from:gympass OR from:wellhub',                              cat: 'Saúde',    nome: 'Wellhub/Gympass'},
+  { query: '(farmácia OR drogasil OR ultrafarma) compra confirmada',    cat: 'Saúde',    nome: 'Farmácia'       },
+
+  // Transporte
+  { query: 'from:99app OR from:99taxi',                                  cat: 'Transporte', nome: '99'           },
+
+  // Contas de casa
+  { query: 'from:saneago OR fatura saneago',                            cat: 'Casa',     nome: 'Saneago'        },
+  { query: 'from:equatorial OR from:celg OR fatura energia',            cat: 'Casa',     nome: 'Energia'        },
+  { query: 'from:comgas OR fatura gas',                                  cat: 'Casa',     nome: 'Gás'            },
+
+  // Boletos e faturas genéricas
+  { query: 'subject:(fatura OR boleto OR cobrança OR vencimento) -from:noreply@github.com', cat: 'Outros', nome: 'Boleto/Fatura' },
+
+  // Cartão de crédito
+  { query: 'subject:(fatura do cartão OR fatura cartão OR seu cartão)',  cat: 'Cartão',   nome: 'Fatura Cartão'  },
 ];
 
-const EMPRESA_DEFAULT = [
-  { id:'e1', nome:'Condomínio',      valor:0, cat:'Empresa→Bruna', obs:'Pago pela empresa — deduzir da distribuição' },
-  { id:'e2', nome:'IPVA',            valor:0, cat:'Empresa→Bruna', obs:'Pago pela empresa — deduzir da distribuição' },
-  { id:'e3', nome:'IPTU',            valor:0, cat:'Empresa→Bruna', obs:'Pago pela empresa — deduzir da distribuição' },
-  { id:'e4', nome:'Energia elétrica',valor:0, cat:'Empresa→Bruna', obs:'Pago pela empresa — deduzir da distribuição' },
-  { id:'e5', nome:'Seguro do carro', valor:0, cat:'Empresa→Bruna', obs:'Pago pela empresa — deduzir da distribuição' },
-];
+// ═══════════════════════════════════════════════════════════════════════════════
+// FUNÇÃO PRINCIPAL — executada automaticamente pelo trigger diário
+// ═══════════════════════════════════════════════════════════════════════════════
+function executarDiario() {
+  Logger.log('=== Palladium Hub — Execução diária: ' + new Date().toLocaleString('pt-BR') + ' ===');
 
-function initFinanceiro() {
-  if (!localStorage.getItem(KF.lancamentos)) {
-    const mes = getMesAtivo();
-    const lancs = [...FIXOS_DEFAULT, ...VARIAVEIS_DEFAULT].map(f => ({
-      ...f,
-      id: f.id + '_' + mes,
-      mes,
-      fixoRef: f.id,
-    }));
-    svF(KF.lancamentos, lancs);
+  try {
+    const planilha = obterOuCriarPlanilha();
+    buscarGastosGmail(planilha);
+    sincronizarCalendar(planilha);
+    atualizarResumoMensal(planilha);
+    Logger.log('✓ Execução concluída com sucesso');
+  } catch (e) {
+    Logger.log('✗ Erro na execução: ' + e.toString());
   }
-  if (!localStorage.getItem(KF.orcamento)) {
-    svF(KF.orcamento, {
-      proLabore: 7000,
-      metaReserva: 1000,
-      alertas: true,
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PLANILHA
+// ═══════════════════════════════════════════════════════════════════════════════
+function obterOuCriarPlanilha() {
+  const arquivos = DriveApp.getFilesByName(CONFIG.PLANILHA_NOME);
+  if (arquivos.hasNext()) {
+    const arquivo = arquivos.next();
+    return SpreadsheetApp.openById(arquivo.getId());
+  }
+
+  // Cria nova planilha
+  const ss = SpreadsheetApp.create(CONFIG.PLANILHA_NOME);
+  criarAbaGastos(ss);
+  criarAbaFixos(ss);
+  criarAbaResumo(ss);
+  Logger.log('✓ Planilha criada: ' + ss.getUrl());
+  return ss;
+}
+
+function criarAbaGastos(ss) {
+  let aba = ss.getSheetByName('Gastos');
+  if (!aba) aba = ss.insertSheet('Gastos');
+  aba.clearContents();
+  const cabecalho = ['Data', 'Descrição', 'Valor (R$)', 'Categoria', 'Fonte', 'E-mail ID', 'Mês'];
+  aba.getRange(1, 1, 1, cabecalho.length).setValues([cabecalho]);
+  aba.getRange(1, 1, 1, cabecalho.length).setFontWeight('bold').setBackground('#534AB7').setFontColor('white');
+  aba.setFrozenRows(1);
+}
+
+function criarAbaFixos(ss) {
+  let aba = ss.getSheetByName('Fixos');
+  if (!aba) aba = ss.insertSheet('Fixos');
+  aba.clearContents();
+  const cabecalho = ['Nome', 'Valor (R$)', 'Dia Vencimento', 'Categoria', 'Pago', 'Mês Referência'];
+  aba.getRange(1, 1, 1, cabecalho.length).setValues([cabecalho]);
+  aba.getRange(1, 1, 1, cabecalho.length).setFontWeight('bold').setBackground('#0F6E56').setFontColor('white');
+  aba.setFrozenRows(1);
+
+  // Popula com as contas fixas
+  const mesAtual = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'yyyy-MM');
+  const dados = CONTAS_FIXAS.map(c => [c.nome, c.valor, c.dia, c.cat, 'NÃO', mesAtual]);
+  if (dados.length > 0) {
+    aba.getRange(2, 1, dados.length, 6).setValues(dados);
+  }
+}
+
+function criarAbaResumo(ss) {
+  let aba = ss.getSheetByName('Resumo');
+  if (!aba) aba = ss.insertSheet('Resumo');
+  aba.clearContents();
+  const cabecalho = ['Mês', 'Total Fixos', 'Total Variáveis', 'Total Gastos', 'Pró-labore', 'Saldo', 'Atualizado em'];
+  aba.getRange(1, 1, 1, cabecalho.length).setValues([cabecalho]);
+  aba.getRange(1, 1, 1, cabecalho.length).setFontWeight('bold').setBackground('#854F0B').setFontColor('white');
+  aba.setFrozenRows(1);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BUSCA DE GASTOS NO GMAIL
+// ═══════════════════════════════════════════════════════════════════════════════
+function buscarGastosGmail(ss) {
+  const aba = ss.getSheetByName('Gastos') || criarAbaGastos(ss);
+  const dataLimite = new Date();
+  dataLimite.setDate(dataLimite.getDate() - CONFIG.DIAS_BUSCA);
+
+  // Pega IDs já processados para não duplicar
+  const dados = aba.getDataRange().getValues();
+  const idsProcessados = new Set(dados.slice(1).map(r => r[5]).filter(id => id));
+
+  let totalNovos = 0;
+  const novosRegistros = [];
+
+  PADROES_GMAIL.forEach(padrao => {
+    try {
+      const queryCompleta = padrao.query + ' newer_than:' + CONFIG.DIAS_BUSCA + 'd';
+      const threads = GmailApp.search(queryCompleta, 0, 20);
+
+      threads.forEach(thread => {
+        const msgs = thread.getMessages();
+        msgs.forEach(msg => {
+          if (msg.getDate() < dataLimite) return;
+          if (idsProcessados.has(msg.getId())) return;
+
+          const valor = extrairValor(msg.getBody() + ' ' + msg.getSubject());
+          const data = Utilities.formatDate(msg.getDate(), 'America/Sao_Paulo', 'dd/MM/yyyy');
+          const mes  = Utilities.formatDate(msg.getDate(), 'America/Sao_Paulo', 'yyyy-MM');
+          const desc = padrao.nome + ' — ' + msg.getSubject().substring(0, 60);
+
+          novosRegistros.push([data, desc, valor || '', padrao.cat, padrao.nome, msg.getId(), mes]);
+          idsProcessados.add(msg.getId());
+          totalNovos++;
+        });
+      });
+    } catch (e) {
+      Logger.log('Erro ao buscar ' + padrao.nome + ': ' + e.message);
+    }
+  });
+
+  if (novosRegistros.length > 0) {
+    const ultimaLinha = aba.getLastRow() + 1;
+    aba.getRange(ultimaLinha, 1, novosRegistros.length, 7).setValues(novosRegistros);
+    Logger.log('✓ Gmail: ' + totalNovos + ' novos registros encontrados');
+  } else {
+    Logger.log('✓ Gmail: nenhum novo gasto nos últimos ' + CONFIG.DIAS_BUSCA + ' dias');
+  }
+}
+
+// Extrai valor monetário do corpo/assunto do e-mail
+function extrairValor(texto) {
+  // Padrões: R$ 1.234,56 ou R$1234.56 ou 1.234,56 ou BRL 1234
+  const padroes = [
+    /R\$\s*([\d.,]+)/i,
+    /BRL\s*([\d.,]+)/i,
+    /valor[:\s]+R?\$?\s*([\d.,]+)/i,
+    /total[:\s]+R?\$?\s*([\d.,]+)/i,
+    /cobrança[:\s]+R?\$?\s*([\d.,]+)/i,
+  ];
+
+  for (const padrao of padroes) {
+    const match = texto.match(padrao);
+    if (match) {
+      const valorStr = match[1].replace(/\./g, '').replace(',', '.');
+      const valor = parseFloat(valorStr);
+      if (!isNaN(valor) && valor > 0 && valor < 50000) {
+        return valor;
+      }
+    }
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GOOGLE CALENDAR — SINCRONIZAR VENCIMENTOS
+// ═══════════════════════════════════════════════════════════════════════════════
+function sincronizarCalendar(ss) {
+  const calendar = CalendarApp.getDefaultCalendar();
+  const agora = new Date();
+  const mes = agora.getMonth();
+  const ano = agora.getFullYear();
+
+  let criados = 0, atualizados = 0;
+
+  CONTAS_FIXAS.forEach(conta => {
+    // Cria evento para este mês e próximo mês
+    [-1, 0, 1, 2].forEach(delta => {
+      const dataMes = new Date(ano, mes + delta, conta.dia);
+      if (dataMes < new Date(ano, mes - 1, 1)) return; // Não criar no passado distante
+
+      const titulo = CONFIG.PREFIXO_EVENTO + conta.nome + ' — R$ ' + conta.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+
+      // Verifica se já existe
+      const inicio = new Date(dataMes);
+      inicio.setHours(9, 0, 0, 0);
+      const fim = new Date(dataMes);
+      fim.setHours(9, 30, 0, 0);
+
+      const eventosExistentes = calendar.getEvents(
+        new Date(dataMes.getFullYear(), dataMes.getMonth(), dataMes.getDate(), 0, 0),
+        new Date(dataMes.getFullYear(), dataMes.getMonth(), dataMes.getDate(), 23, 59)
+      );
+
+      const jaExiste = eventosExistentes.some(e => e.getTitle().startsWith(CONFIG.PREFIXO_EVENTO + conta.nome));
+
+      if (!jaExiste) {
+        const evento = calendar.createEvent(titulo, inicio, fim, {
+          description: `Categoria: ${conta.cat}\nValor: R$ ${conta.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\nGerado automaticamente pelo Palladium Hub`,
+          color: CalendarApp.EventColor.RED,
+        });
+
+        // Adiciona lembretes
+        evento.addPopupReminder(CONFIG.LEMBRETE_DIAS_ANTES); // 2 dias antes
+        evento.addPopupReminder(CONFIG.LEMBRETE_NO_DIA);      // no dia às 8h
+        evento.addEmailReminder(CONFIG.LEMBRETE_DIAS_ANTES);  // e-mail 2 dias antes
+
+        criados++;
+      }
     });
-  }
-  if (!localStorage.getItem(KF.empresa)) {
-    svF(KF.empresa, EMPRESA_DEFAULT);
-  }
-}
-
-function ldF(k) { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } }
-function svF(k, d) { try { localStorage.setItem(k, JSON.stringify(d)); } catch {} }
-
-function getMesAtivo() {
-  const saved = localStorage.getItem(KF.mesAtivo);
-  if (saved) return saved;
-  const now = new Date();
-  const mes = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-  localStorage.setItem(KF.mesAtivo, mes);
-  return mes;
-}
-
-function setMesAtivo(mes) {
-  localStorage.setItem(KF.mesAtivo, mes);
-  // Gera lançamentos do mês se não existirem
-  const todos = ldF(KF.lancamentos);
-  const doMes = todos.filter(l => l.mes === mes);
-  if (doMes.length === 0) {
-    const novos = [...FIXOS_DEFAULT, ...VARIAVEIS_DEFAULT].map(f => ({
-      ...f,
-      id: f.id + '_' + mes,
-      mes,
-      fixoRef: f.id,
-      pago: false,
-    }));
-    svF(KF.lancamentos, [...todos, ...novos]);
-  }
-  renderFinanceiroCompleto();
-}
-
-function fmtMes(mesStr) {
-  const [y, m] = mesStr.split('-');
-  const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  return `${meses[parseInt(m)-1]} ${y}`;
-}
-
-function getMesesDisponiveis() {
-  const todos = ldF(KF.lancamentos);
-  const meses = [...new Set(todos.map(l => l.mes))].sort();
-  return meses;
-}
-
-function getProximosMeses(n=3) {
-  const now = new Date();
-  const result = [];
-  for (let i = 0; i < n; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    result.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
-  }
-  return result;
-}
-
-// ── RENDER FINANCEIRO COMPLETO ────────────────────────────────────────────────
-function renderFinanceiroCompleto() {
-  const container = document.getElementById('fin-completo');
-  if (!container) return;
-
-  const mes = getMesAtivo();
-  const todos = ldF(KF.lancamentos);
-  const doMes = todos.filter(l => l.mes === mes);
-  const orc = ldF(KF.orcamento) || { proLabore: 7000 };
-  const empresa = ldF(KF.empresa);
-
-  const totalDesp = doMes.filter(l=>l.tipo==='despesa').reduce((s,l)=>s+Number(l.valor||0),0);
-  const totalRec  = Number(orc.proLabore || 7000);
-  const saldo     = totalRec - totalDesp;
-  const pagas     = doMes.filter(l=>l.pago&&l.tipo==='despesa').reduce((s,l)=>s+Number(l.valor||0),0);
-  const pendentes = totalDesp - pagas;
-  const totalEmp  = empresa.reduce((s,e)=>s+Number(e.valor||0),0);
-
-  // Agrupamento por categoria
-  const porCat = {};
-  doMes.filter(l=>l.tipo==='despesa').forEach(l=>{
-    if (!porCat[l.cat]) porCat[l.cat] = 0;
-    porCat[l.cat] += Number(l.valor||0);
   });
 
-  const catColors = {
-    'Assinaturas':'#534AB7','Educação':'#0F6E56','Casa':'#854F0B',
-    'Saúde':'#E24B4A','Lazer':'#993556','Compras':'#185FA5',
-    'Investimento':'#639922','Outros':'#888780',
-  };
-
-  const mesesNav = getMesesDisponiveis();
-  const proxMeses = getProximosMeses(3);
-
-  container.innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;flex-wrap:wrap">
-      <div style="display:flex;gap:4px;background:var(--surface2);padding:4px;border-radius:10px">
-        ${mesesNav.map(m=>`
-          <button onclick="setMesAtivo('${m}')" style="font-size:12px;padding:5px 12px;cursor:pointer;border-radius:8px;border:none;background:${m===mes?'var(--surface)':'transparent'};color:${m===mes?'var(--text)':'var(--text-3)'};font-weight:${m===mes?'500':'400'};font-family:var(--font-body);transition:all .12s">${fmtMes(m)}</button>`).join('')}
-        <button onclick="adicionarMes()" style="font-size:12px;padding:5px 10px;cursor:pointer;border-radius:8px;border:none;background:transparent;color:var(--text-3);font-family:var(--font-body)">+ Mês</button>
-      </div>
-      <button onclick="abrirGmailSync()" style="font-size:12px;padding:6px 14px;cursor:pointer;border-radius:20px;border:1px solid var(--pes-mid);background:var(--pes-light);color:var(--pes-dark);font-family:var(--font-body);font-weight:500">Gmail — buscar cobranças ↗</button>
-      <button onclick="abrirCalendarSync()" style="font-size:12px;padding:6px 14px;cursor:pointer;border-radius:20px;border:1px solid var(--pal-mid);background:var(--pal-light);color:var(--pal-dark);font-family:var(--font-body);font-weight:500">Sincronizar Calendar ↗</button>
-    </div>
-
-    <!-- MÉTRICAS DO MÊS -->
-    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--card-gap);margin-bottom:1.25rem">
-      <div class="metric m-pes">
-        <div class="metric-lbl">Pró-labore previsto</div>
-        <div class="metric-val" style="font-size:18px">R$ ${totalRec.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
-        <div class="metric-sub">receita do mês</div>
-      </div>
-      <div class="metric m-urg">
-        <div class="metric-lbl">Total despesas</div>
-        <div class="metric-val" style="font-size:18px">R$ ${totalDesp.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
-        <div class="metric-sub">${doMes.filter(l=>l.tipo==='despesa').length} lançamentos</div>
-      </div>
-      <div class="metric ${saldo>=0?'m-pal':'m-urg'}">
-        <div class="metric-lbl">Saldo do mês</div>
-        <div class="metric-val" style="font-size:18px;color:${saldo>=0?'var(--pes)':'var(--urg)'}">R$ ${saldo.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
-        <div class="metric-sub">${saldo>=0?'positivo':'atenção'}</div>
-      </div>
-      <div class="metric m-amber" style="background:var(--inv-light);border-color:var(--inv-mid)">
-        <div class="metric-lbl">Pendente pagar</div>
-        <div class="metric-val" style="font-size:18px;color:var(--inv-dark)">R$ ${pendentes.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
-        <div class="metric-sub">${doMes.filter(l=>!l.pago&&l.tipo==='despesa').length} contas em aberto</div>
-      </div>
-    </div>
-
-    <!-- GRÁFICO POR CATEGORIA + CONTAS -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem">
-
-      <!-- Categorias -->
-      <div class="fin-card">
-        <div class="fin-hd">Gastos por categoria — ${fmtMes(mes)}</div>
-        ${Object.entries(porCat).sort((a,b)=>b[1]-a[1]).map(([cat,val])=>{
-          const pct = totalDesp > 0 ? Math.round((val/totalDesp)*100) : 0;
-          const cor = catColors[cat] || '#888780';
-          return `<div style="margin-bottom:10px">
-            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
-              <span style="color:var(--text-2)">${cat}</span>
-              <span style="font-weight:500;color:var(--text)">R$ ${val.toLocaleString('pt-BR',{minimumFractionDigits:2})} <span style="color:var(--text-3);font-weight:400">(${pct}%)</span></span>
-            </div>
-            <div style="height:6px;background:var(--surface2);border-radius:10px;overflow:hidden">
-              <div style="height:100%;width:${pct}%;background:${cor};border-radius:10px;transition:width .3s"></div>
-            </div>
-          </div>`;
-        }).join('')}
-        <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:6px;display:flex;justify-content:space-between;font-size:12px">
-          <span style="font-weight:500;color:var(--text)">Total</span>
-          <span style="font-weight:500;color:var(--urg)">R$ ${totalDesp.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>
-        </div>
-      </div>
-
-      <!-- Projeção 3 meses -->
-      <div class="fin-card">
-        <div class="fin-hd">Projeção próximos 3 meses</div>
-        ${proxMeses.map((m,i)=>{
-          const proj = totalRec - totalDesp;
-          const acum = proj * (i+1);
-          return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <div>
-                <div style="font-size:12px;font-weight:500;color:var(--text)">${fmtMes(m)}</div>
-                <div style="font-size:11px;color:var(--text-3)">Fixos: R$ ${totalDesp.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
-              </div>
-              <div style="text-align:right">
-                <div style="font-size:13px;font-weight:500;color:${proj>=0?'var(--pes)':'var(--urg)'}">R$ ${proj.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
-                <div style="font-size:10px;color:var(--text-3)">acum. R$ ${acum.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div>
-              </div>
-            </div>
-          </div>`;
-        }).join('')}
-        <div style="padding-top:10px;font-size:11px;color:var(--text-3)">
-          Baseado no pró-labore de R$ ${totalRec.toLocaleString('pt-BR')} e despesas fixas de R$ ${totalDesp.toLocaleString('pt-BR',{minimumFractionDigits:2})}
-        </div>
-      </div>
-    </div>
-
-    <!-- LANÇAMENTOS -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem">
-
-      <!-- Fixos -->
-      <div class="fin-card">
-        <div class="fin-hd" style="display:flex;justify-content:space-between;align-items:center">
-          <span>Contas fixas</span>
-          <span style="font-size:11px;font-weight:400;color:var(--text-3)">R$ ${doMes.filter(l=>!l.variavel&&l.tipo==='despesa').reduce((s,l)=>s+Number(l.valor||0),0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>
-        </div>
-        ${doMes.filter(l=>!l.variavel&&l.tipo==='despesa').map(l=>`
-          <div class="fin-row">
-            <div class="fin-left">
-              <div class="fin-name">${l.nome}</div>
-              <div class="fin-dt">${l.dia?`Dia ${l.dia}`:'Sem data'} · ${l.cat}</div>
-            </div>
-            <div class="fin-right">
-              <span class="fin-val neg">R$ ${Number(l.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>
-              <button onclick="togglePagoFin('${l.id}')" style="font-size:10px;padding:2px 7px;border-radius:20px;border:none;cursor:pointer;font-family:var(--font-body);background:${l.pago?'var(--pes-light)':'var(--surface2)'};color:${l.pago?'var(--pes-dark)':'var(--text-3)'}">${l.pago?'✓ pago':'pagar'}</button>
-            </div>
-          </div>`).join('')}
-      </div>
-
-      <!-- Variáveis -->
-      <div class="fin-card">
-        <div class="fin-hd" style="display:flex;justify-content:space-between;align-items:center">
-          <span>Variáveis do mês</span>
-          <button onclick="toggleForm('form-fin-var')" style="font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--border-mid);background:transparent;color:var(--text-3);cursor:pointer;font-family:var(--font-body)">+ lançar</button>
-        </div>
-        <div class="form-box" id="form-fin-var" style="margin-bottom:8px">
-          <div class="fg">
-            <input id="fv-nome" placeholder="Descrição">
-            <select id="fv-cat">
-              <option value="Saúde">Saúde</option>
-              <option value="Compras">Compras</option>
-              <option value="Casa">Casa</option>
-              <option value="Lazer">Lazer</option>
-              <option value="Investimento">Investimento</option>
-              <option value="Outros">Outros</option>
-            </select>
-          </div>
-          <div class="fg">
-            <input id="fv-valor" type="number" placeholder="Valor R$">
-            <input id="fv-data" type="date">
-          </div>
-          <div class="fa">
-            <button class="btn-save" onclick="salvarVarFin()">Salvar</button>
-            <button class="btn-cancel" onclick="toggleForm('form-fin-var')">Cancelar</button>
-          </div>
-        </div>
-        ${doMes.filter(l=>l.variavel&&l.tipo==='despesa').map(l=>`
-          <div class="fin-row">
-            <div class="fin-left">
-              <div class="fin-name">${l.nome}</div>
-              <div class="fin-dt">${l.data?l.data:''} · ${l.cat}</div>
-            </div>
-            <div class="fin-right">
-              <span class="fin-val neg">R$ ${Number(l.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>
-              <button class="del-x" onclick="delLancFin('${l.id}')">✕</button>
-            </div>
-          </div>`).join('')}
-        <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px;display:flex;justify-content:space-between;font-size:12px">
-          <span style="color:var(--text-3)">Total variáveis</span>
-          <span style="font-weight:500;color:var(--urg)">R$ ${doMes.filter(l=>l.variavel&&l.tipo==='despesa').reduce((s,l)=>s+Number(l.valor||0),0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- EMPRESA PAGA POR VOCÊ -->
-    <div class="fin-card" style="margin-bottom:1.25rem">
-      <div class="fin-hd" style="display:flex;justify-content:space-between;align-items:center">
-        <span>Empresa paga por você — deduzir da distribuição</span>
-        <span style="font-size:11px;font-weight:400;color:var(--inv-dark)">Total: R$ ${totalEmp.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">
-        ${empresa.map(e=>`
-          <div style="text-align:center;background:var(--inv-light);border-radius:var(--radius-md);padding:10px 8px;border:1px solid var(--inv-mid)">
-            <div style="font-size:11px;color:var(--inv-dark);font-weight:500;margin-bottom:4px">${e.nome}</div>
-            <div style="font-size:14px;font-weight:700;color:var(--inv-dark);font-family:var(--font-display)">${e.valor?'R$ '+Number(e.valor).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</div>
-            <button onclick="editarEmpresa('${e.id}')" style="font-size:10px;color:var(--text-3);background:transparent;border:none;cursor:pointer;margin-top:4px">editar</button>
-          </div>`).join('')}
-      </div>
-      <div style="margin-top:10px;font-size:11px;color:var(--text-3);font-style:italic">
-        Passe os valores quando tiver — serão deduzidos automaticamente da sua distribuição de lucros.
-      </div>
-    </div>
-
-    <!-- PRÓL-LABORE RECOMENDADO -->
-    <div style="background:var(--pal-light);border:1px solid var(--pal-mid);border-radius:var(--radius-lg);padding:1rem;margin-bottom:1.25rem">
-      <div style="font-size:12px;font-weight:600;color:var(--pal-dark);margin-bottom:8px;letter-spacing:.05em;text-transform:uppercase">Análise de pró-labore</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem">
-        <div>
-          <div style="font-size:11px;color:var(--pal-dark);margin-bottom:2px">Mínimo necessário</div>
-          <div style="font-size:20px;font-weight:700;color:var(--pal);font-family:var(--font-display)">R$ ${totalDesp.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div>
-          <div style="font-size:10px;color:var(--pal-dark)">cobre exatamente os gastos</div>
-        </div>
-        <div>
-          <div style="font-size:11px;color:var(--pal-dark);margin-bottom:2px">Recomendado (30% folga)</div>
-          <div style="font-size:20px;font-weight:700;color:var(--pal);font-family:var(--font-display)">R$ ${Math.ceil(totalDesp*1.3/100)*100}.00</div>
-          <div style="font-size:10px;color:var(--pal-dark)">margem para imprevistos</div>
-        </div>
-        <div>
-          <div style="font-size:11px;color:var(--pal-dark);margin-bottom:2px">Atual configurado</div>
-          <div style="font-size:20px;font-weight:700;color:var(--pal);font-family:var(--font-display)">R$ ${Number(orc.proLabore).toLocaleString('pt-BR',{minimumFractionDigits:0})}</div>
-          <button onclick="editarProLabore()" style="font-size:10px;color:var(--pal-dark);background:transparent;border:none;cursor:pointer;padding:0;margin-top:2px">editar →</button>
-        </div>
-      </div>
-    </div>
-  `;
+  Logger.log(`✓ Calendar: ${criados} eventos criados, ${atualizados} atualizados`);
 }
 
-// ── AÇÕES FINANCEIRO ──────────────────────────────────────────────────────────
-function togglePagoFin(id) {
-  const todos = ldF(KF.lancamentos);
-  const i = todos.findIndex(l => l.id === id);
-  if (i > -1) { todos[i].pago = !todos[i].pago; svF(KF.lancamentos, todos); renderFinanceiroCompleto(); }
-}
+// ═══════════════════════════════════════════════════════════════════════════════
+// RESUMO MENSAL
+// ═══════════════════════════════════════════════════════════════════════════════
+function atualizarResumoMensal(ss) {
+  const abaGastos = ss.getSheetByName('Gastos');
+  const abaResumo = ss.getSheetByName('Resumo');
+  if (!abaGastos || !abaResumo) return;
 
-function delLancFin(id) {
-  svF(KF.lancamentos, ldF(KF.lancamentos).filter(l => l.id !== id));
-  renderFinanceiroCompleto();
-}
+  const mesAtual = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'yyyy-MM');
+  const dadosGastos = abaGastos.getDataRange().getValues();
 
-function salvarVarFin() {
-  const nome = document.getElementById('fv-nome').value.trim();
-  if (!nome) return;
-  const mes = getMesAtivo();
-  const todos = ldF(KF.lancamentos);
-  todos.push({
-    id: 'var_' + Date.now(),
-    nome,
-    valor: document.getElementById('fv-valor').value,
-    cat: document.getElementById('fv-cat').value,
-    data: document.getElementById('fv-data').value,
-    tipo: 'despesa',
-    variavel: true,
-    pago: false,
-    mes,
+  // Soma variáveis do mês atual (excluindo cabeçalho)
+  let totalVariaveis = 0;
+  dadosGastos.slice(1).forEach(row => {
+    if (row[6] === mesAtual && row[2]) {
+      totalVariaveis += Number(row[2]) || 0;
+    }
   });
-  svF(KF.lancamentos, todos);
-  document.getElementById('fv-nome').value = '';
-  document.getElementById('fv-valor').value = '';
-  document.getElementById('fv-data').value = '';
-  toggleForm('form-fin-var');
-  renderFinanceiroCompleto();
+
+  const totalFixos = CONTAS_FIXAS.reduce((s, c) => s + c.valor, 0);
+  const totalGastos = totalFixos + totalVariaveis;
+  const proLabore = 7000; // Valor configurado
+  const saldo = proLabore - totalGastos;
+  const agora = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm');
+
+  // Verifica se já tem linha do mês
+  const dadosResumo = abaResumo.getDataRange().getValues();
+  const linhaExistente = dadosResumo.findIndex(r => r[0] === mesAtual);
+
+  const novaLinha = [mesAtual, totalFixos, totalVariaveis, totalGastos, proLabore, saldo, agora];
+
+  if (linhaExistente > 0) {
+    abaResumo.getRange(linhaExistente + 1, 1, 1, 7).setValues([novaLinha]);
+  } else {
+    abaResumo.appendRow(novaLinha);
+  }
+
+  // Formata valores monetários
+  const ultima = abaResumo.getLastRow();
+  abaResumo.getRange(ultima, 2, 1, 5).setNumberFormat('R$ #,##0.00');
+
+  Logger.log(`✓ Resumo ${mesAtual}: fixos R$${totalFixos.toFixed(2)}, variáveis R$${totalVariaveis.toFixed(2)}, saldo R$${saldo.toFixed(2)}`);
 }
 
-function adicionarMes() {
-  const todos = ldF(KF.lancamentos);
-  const meses = [...new Set(todos.map(l => l.mes))].sort();
-  const ultimo = meses[meses.length - 1] || getMesAtivo();
-  const [y, m] = ultimo.split('-').map(Number);
-  const proximo = m === 12
-    ? `${y+1}-01`
-    : `${y}-${String(m+1).padStart(2,'0')}`;
-  setMesAtivo(proximo);
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONFIGURAÇÃO DO TRIGGER DIÁRIO
+// Execute esta função UMA VEZ para ativar a automação
+// ═══════════════════════════════════════════════════════════════════════════════
+function configurarTrigger() {
+  // Remove triggers antigos deste script
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === 'executarDiario') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+
+  // Cria novo trigger: todo dia às 8h (horário de Brasília)
+  ScriptApp.newTrigger('executarDiario')
+    .timeBased()
+    .everyDays(1)
+    .atHour(8)
+    .inTimezone('America/Sao_Paulo')
+    .create();
+
+  Logger.log('✓ Trigger configurado: executarDiario todos os dias às 8h (Brasília)');
+  Logger.log('✓ Execute executarDiario() agora para testar');
 }
 
-function editarEmpresa(id) {
-  const empresa = ldF(KF.empresa);
-  const item = empresa.find(e => e.id === id);
-  if (!item) return;
-  const val = prompt(`Valor de ${item.nome} (R$):`, item.valor || '');
-  if (val === null) return;
-  const i = empresa.findIndex(e => e.id === id);
-  empresa[i].valor = parseFloat(val.replace(',','.')) || 0;
-  svF(KF.empresa, empresa);
-  renderFinanceiroCompleto();
+// ═══════════════════════════════════════════════════════════════════════════════
+// UTILITÁRIOS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Marcar uma conta fixa como paga no Sheets
+function marcarComoPago(nomeConta) {
+  const ss = obterOuCriarPlanilha();
+  const aba = ss.getSheetByName('Fixos');
+  if (!aba) return;
+
+  const dados = aba.getDataRange().getValues();
+  const mesAtual = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'yyyy-MM');
+
+  dados.forEach((row, i) => {
+    if (i === 0) return;
+    if (row[0] === nomeConta && row[5] === mesAtual) {
+      aba.getRange(i + 1, 5).setValue('SIM');
+      // Atualiza evento no Calendar para cor verde
+      atualizarCorEventoCalendar(nomeConta, CalendarApp.EventColor.GREEN);
+    }
+  });
 }
 
-function editarProLabore() {
-  const orc = ldF(KF.orcamento) || {};
-  const val = prompt('Pró-labore mensal (R$):', orc.proLabore || 7000);
-  if (val === null) return;
-  orc.proLabore = parseFloat(val.replace(',','.')) || 7000;
-  svF(KF.orcamento, orc);
-  renderFinanceiroCompleto();
+function atualizarCorEventoCalendar(nomeConta, cor) {
+  const calendar = CalendarApp.getDefaultCalendar();
+  const hoje = new Date();
+  const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+
+  const eventos = calendar.getEvents(hoje, fimMes);
+  eventos.forEach(e => {
+    if (e.getTitle().startsWith(CONFIG.PREFIXO_EVENTO + nomeConta)) {
+      e.setColor(cor);
+    }
+  });
 }
 
-// ── INTEGRAÇÕES ───────────────────────────────────────────────────────────────
-function abrirGmailSync() {
-  const msg = encodeURIComponent(
-    'Por favor, acesse meu Gmail e busque os e-mails de cobrança, boleto e fatura que chegaram este mês. ' +
-    'Liste os valores, vencimentos e remetentes para eu lançar no meu controle financeiro do Palladium Hub.'
-  );
-  window.open(`https://claude.ai/new?q=${msg}`, '_blank');
-}
+// Gera relatório do mês atual no log
+function relatorioMes() {
+  const ss = obterOuCriarPlanilha();
+  const abaGastos = ss.getSheetByName('Gastos');
+  if (!abaGastos) { Logger.log('Planilha não encontrada. Execute configurarTrigger() primeiro.'); return; }
 
-function abrirCalendarSync() {
-  const mes = getMesAtivo();
-  const todos = ldF(KF.lancamentos);
-  const doMes = todos.filter(l => l.mes === mes && !l.pago && l.tipo === 'despesa');
-  const lista = doMes.map(l => `- ${l.nome}: R$ ${Number(l.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})}${l.dia ? `, dia ${l.dia}` : ''}`).join('\n');
-  const msg = encodeURIComponent(
-    `Por favor, crie eventos no meu Google Calendar para os vencimentos do mês ${mes}:\n${lista}\n` +
-    `Cada evento deve ter lembrete 2 dias antes e no dia do vencimento.`
-  );
-  window.open(`https://claude.ai/new?q=${msg}`, '_blank');
+  const mesAtual = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'yyyy-MM');
+  const dados = abaGastos.getDataRange().getValues();
+  const doMes = dados.slice(1).filter(r => r[6] === mesAtual);
+
+  const porCategoria = {};
+  doMes.forEach(r => {
+    if (!porCategoria[r[3]]) porCategoria[r[3]] = 0;
+    porCategoria[r[3]] += Number(r[2]) || 0;
+  });
+
+  Logger.log('\n=== RELATÓRIO ' + mesAtual + ' ===');
+  Object.entries(porCategoria).sort((a,b) => b[1]-a[1]).forEach(([cat, val]) => {
+    Logger.log(cat + ': R$ ' + val.toFixed(2));
+  });
+  const total = Object.values(porCategoria).reduce((s,v) => s+v, 0);
+  Logger.log('TOTAL VARIÁVEIS: R$ ' + total.toFixed(2));
+  Logger.log('FIXOS: R$ ' + CONTAS_FIXAS.reduce((s,c) => s+c.valor, 0).toFixed(2));
+  Logger.log('GRAND TOTAL: R$ ' + (total + CONTAS_FIXAS.reduce((s,c) => s+c.valor, 0)).toFixed(2));
 }

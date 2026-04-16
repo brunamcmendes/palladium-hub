@@ -1,24 +1,172 @@
-{
-  "name": "Palladium Hub",
-  "short_name": "P. Hub",
-  "description": "Gestão integrada do Grupo Palladium e VBM",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#F7F6F3",
-  "theme_color": "#534AB7",
-  "orientation": "portrait-primary",
-  "icons": [
-    {
-      "src": "assets/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "assets/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+// ── SUPABASE CLIENT ───────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://tdgzeusvnyrevuyhwmrx.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_NJr6x9SsV7h5Atn0W43D0g_KofKO9fp';
+
+// Cliente Supabase via CDN (carregado no index.html)
+let supabase = null;
+
+function initSupabase() {
+  if (typeof window.supabase !== 'undefined') {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    console.log('✓ Supabase conectado');
+    return true;
+  }
+  console.warn('Supabase SDK não carregado');
+  return false;
+}
+
+// ── TABELAS NO SUPABASE ───────────────────────────────────────────────────────
+// Execute este SQL no Supabase Dashboard → SQL Editor para criar as tabelas:
+//
+// CREATE TABLE IF NOT EXISTS ph_dados (
+//   id TEXT PRIMARY KEY,
+//   chave TEXT NOT NULL,
+//   valor JSONB,
+//   atualizado_em TIMESTAMPTZ DEFAULT NOW()
+// );
+// ALTER TABLE ph_dados ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "acesso_publico" ON ph_dados FOR ALL USING (true) WITH CHECK (true);
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── SYNC: LOCAL → SUPABASE ────────────────────────────────────────────────────
+async function syncParaNuvem(chave, dados) {
+  if (!supabase) return false;
+  try {
+    const { error } = await supabase
+      .from('ph_dados')
+      .upsert({
+        id: chave,
+        chave: chave,
+        valor: dados,
+        atualizado_em: new Date().toISOString()
+      }, { onConflict: 'id' });
+
+    if (error) { console.error('Erro ao salvar na nuvem:', error.message); return false; }
+    return true;
+  } catch (e) {
+    console.error('Sync erro:', e);
+    return false;
+  }
+}
+
+// ── SYNC: SUPABASE → LOCAL ────────────────────────────────────────────────────
+async function syncDaNuvem(chave) {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('ph_dados')
+      .select('valor, atualizado_em')
+      .eq('id', chave)
+      .single();
+
+    if (error || !data) return null;
+    return data.valor;
+  } catch (e) {
+    console.error('Sync leitura erro:', e);
+    return null;
+  }
+}
+
+// ── WRAPPER: SALVAR COM SYNC ──────────────────────────────────────────────────
+// Substitui sv() — salva local E na nuvem
+async function svSync(chave, dados) {
+  // 1. Salva local imediatamente (UI não trava)
+  try { localStorage.setItem(chave, JSON.stringify(dados)); } catch {}
+
+  // 2. Sincroniza com nuvem em background
+  syncParaNuvem(chave, dados);
+}
+
+// ── CARREGAR COM FALLBACK ─────────────────────────────────────────────────────
+// Tenta nuvem primeiro, cai para localStorage se offline
+async function ldSync(chave) {
+  // Tenta nuvem
+  const nuvem = await syncDaNuvem(chave);
+  if (nuvem !== null) {
+    // Atualiza local com dados da nuvem
+    try { localStorage.setItem(chave, JSON.stringify(nuvem)); } catch {}
+    return nuvem;
+  }
+
+  // Fallback: localStorage
+  try { return JSON.parse(localStorage.getItem(chave) || '[]'); } catch { return []; }
+}
+
+// ── SYNC COMPLETO NO BOOT ─────────────────────────────────────────────────────
+const CHAVES_SYNC = [
+  'phub_pal', 'phub_fin', 'phub_pd', 'phub_proc',
+  'phub_bem', 'phub_emp', 'phub_agenda', 'phub_docs',
+  'phub_scratch', 'phub_scratchInv', 'phub_theme',
+  'phub_fin_lanc', 'phub_fin_orc', 'phub_fin_emp'
+];
+
+async function sincronizarTudo() {
+  if (!supabase) return;
+
+  const status = document.getElementById('sync-status');
+  if (status) { status.textContent = '↻ Sincronizando...'; status.style.color = 'var(--text-3)'; }
+
+  let atualizados = 0;
+  for (const chave of CHAVES_SYNC) {
+    const dadosNuvem = await syncDaNuvem(chave);
+    if (dadosNuvem !== null) {
+      try { localStorage.setItem(chave, JSON.stringify(dadosNuvem)); } catch {}
+      atualizados++;
     }
-  ]
+  }
+
+  if (status) {
+    if (atualizados > 0) {
+      status.textContent = '✓ Sincronizado';
+      status.style.color = 'var(--pes-dark, #085041)';
+    } else {
+      status.textContent = '● Online';
+      status.style.color = 'var(--text-3)';
+    }
+    setTimeout(() => { if (status) status.textContent = '● Online'; }, 3000);
+  }
+
+  // Re-renderiza com dados atualizados
+  if (typeof renderAll === 'function') renderAll();
+}
+
+// ── SALVAR TUDO NA NUVEM (backup manual) ─────────────────────────────────────
+async function salvarTudoNaNuvem() {
+  if (!supabase) { alert('Supabase não conectado'); return; }
+
+  const status = document.getElementById('sync-status');
+  if (status) status.textContent = '↑ Salvando...';
+
+  for (const chave of CHAVES_SYNC) {
+    try {
+      const dados = JSON.parse(localStorage.getItem(chave) || 'null');
+      if (dados !== null) await syncParaNuvem(chave, dados);
+    } catch {}
+  }
+
+  if (status) {
+    status.textContent = '✓ Salvo na nuvem';
+    setTimeout(() => { status.textContent = '● Online'; }, 2000);
+  }
+}
+
+// ── STATUS DE CONEXÃO ─────────────────────────────────────────────────────────
+function iniciarMonitorConexao() {
+  const status = document.getElementById('sync-status');
+  if (!status) return;
+
+  function atualizar() {
+    if (navigator.onLine) {
+      status.textContent = '● Online';
+      status.style.color = 'var(--pes-dark, #085041)';
+    } else {
+      status.textContent = '○ Offline';
+      status.style.color = 'var(--urg, #A32D2D)';
+    }
+  }
+
+  window.addEventListener('online', () => { atualizar(); sincronizarTudo(); });
+  window.addEventListener('offline', atualizar);
+  atualizar();
 }
